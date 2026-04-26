@@ -1,12 +1,24 @@
 import { createHash } from 'node:crypto'
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { Agent, setGlobalDispatcher } from 'undici'
 import { parseQuestionPage, parseSectionPage, parseSubjectLinksFromHtml, parseSyllabusPage } from './lib/parsers.mjs'
 
 const DEFAULT_SEED_URL =
   'https://dynamicrepo.sbs/IB%20QUESTIONBANKS/6.%20Sixth%20Edition%20-%202025%20Sciences/questionbank/en/teachers/pirateIB/questionbanks/'
-const QUESTION_CONCURRENCY = 4
+const SUBJECT_CONCURRENCY = 3
+const SECTION_CONCURRENCY = 3
+const QUESTION_CONCURRENCY = 6
 const FETCH_TIMEOUT_MS = 120000
+
+setGlobalDispatcher(
+  new Agent({
+    keepAliveTimeout: 30_000,
+    keepAliveMaxTimeout: 120_000,
+    connections: 8,
+    allowH2: true,
+  }),
+)
 const OUT_DIR = path.resolve(process.cwd(), 'public/data')
 const SUBJECT_DIR = path.join(OUT_DIR, 'subjects')
 
@@ -136,7 +148,26 @@ async function ingestSubject(subject, options) {
 
   console.log(`[${subject.id}] ${syllabus.length} sections, ${metaMap.size} cached questions`)
 
-  for (const section of syllabus) {
+  const imagesDir = path.join(subjectDir, 'img')
+  await mkdir(imagesDir, { recursive: true })
+
+  let sectionsDone = 0
+  const writeIndexSnapshot = async () => {
+    const snapshotQuestions = [...metaMap.values()].sort((left, right) =>
+      left.referenceCode.localeCompare(right.referenceCode),
+    )
+    await writeFile(
+      indexPath,
+      JSON.stringify({
+        subject: { id: subject.id, name: subject.name },
+        syllabus,
+        sectionQuestionOrder,
+        questions: snapshotQuestions,
+      }),
+    )
+  }
+
+  await runWithConcurrency(syllabus, SECTION_CONCURRENCY, async (section) => {
     const sectionUrl = new URL(`syllabus_sections/${section.id}.html`, syllabusUrl).toString()
     let sectionHtml
 
@@ -145,7 +176,7 @@ async function ingestSubject(subject, options) {
     } catch (error) {
       console.warn(`Skipping section ${section.id}: ${error instanceof Error ? error.message : String(error)}`)
       sectionQuestionOrder[section.id] = []
-      continue
+      return
     }
 
     const sectionQuestions = parseSectionPage(sectionHtml, sectionUrl)
@@ -162,12 +193,18 @@ async function ingestSubject(subject, options) {
       const hasMeta = metaMap.has(entry.questionId)
       const hasDetail = await fileExists(detailPath)
       if (hasMeta && hasDetail) continue
+      if (hasDetail && !hasMeta) {
+        try {
+          const cached = JSON.parse(await readFile(detailPath, 'utf8'))
+          if (cached?.meta) {
+            metaMap.set(entry.questionId, { ...cached.meta, memberSectionIds: [], sectionOrders: {} })
+            continue
+          }
+        } catch {}
+      }
       if (toFetch.length >= options.maxQuestionsPerSubject) break
       toFetch.push(entry)
     }
-
-    const imagesDir = path.join(subjectDir, 'img')
-    await mkdir(imagesDir, { recursive: true })
 
     await runWithConcurrency(toFetch, QUESTION_CONCURRENCY, async (entry) => {
       try {
@@ -179,7 +216,7 @@ async function ingestSubject(subject, options) {
             await writeFile(imagePath, Buffer.from(image.base64, 'base64'))
           }
         }
-        await writeFile(path.join(questionsDir, `${entry.questionId}.json`), JSON.stringify(detail))
+        await writeFile(path.join(questionsDir, `${entry.questionId}.json`), JSON.stringify({ ...detail, meta }))
         metaMap.set(entry.questionId, meta)
         addedQuestionCount += 1
       } catch (error) {
@@ -199,8 +236,15 @@ async function ingestSubject(subject, options) {
     }
 
     sectionQuestionOrder[section.id] = includedQuestionIds
-    console.log(`[${subject.id}] section ${section.id}: ${sectionQuestions.length} qs (fetched ${toFetch.length})`)
-  }
+    sectionsDone += 1
+    console.log(
+      `[${subject.id}] (${sectionsDone}/${syllabus.length}) section ${section.id}: ${sectionQuestions.length} qs (fetched ${toFetch.length})`,
+    )
+
+    if (sectionsDone % 5 === 0) {
+      await writeIndexSnapshot()
+    }
+  })
 
   const questions = [...metaMap.values()].sort((left, right) => left.referenceCode.localeCompare(right.referenceCode))
 
@@ -241,29 +285,7 @@ async function main() {
   const existingManifest = await readJson(path.join(OUT_DIR, 'manifest.json'))
   const manifestSubjects = existingManifest?.subjects ? [...existingManifest.subjects] : []
 
-  for (const subject of subjects) {
-    let bundle
-    try {
-      bundle = await ingestSubject(subject, options)
-    } catch (error) {
-      console.error(`[${subject.id}] FAILED: ${error instanceof Error ? error.message : String(error)}`)
-      continue
-    }
-    const bundleHash = hashJson(bundle)
-
-    const summary = {
-      id: subject.id,
-      name: subject.name,
-      bundleUrl: `/data/subjects/${subject.id}/index.json`,
-      bundleHash,
-      questionCount: bundle.questions.length,
-      nodeCount: bundle.syllabus.length,
-    }
-
-    const existingIdx = manifestSubjects.findIndex((entry) => entry.id === subject.id)
-    if (existingIdx >= 0) manifestSubjects[existingIdx] = summary
-    else manifestSubjects.push(summary)
-
+  const writeManifest = async () => {
     const manifest = {
       version: new Date().toISOString(),
       generatedAt: new Date().toISOString(),
@@ -271,6 +293,28 @@ async function main() {
     }
     await writeFile(path.join(OUT_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2))
   }
+
+  await runWithConcurrency(subjects, SUBJECT_CONCURRENCY, async (subject) => {
+    let bundle
+    try {
+      bundle = await ingestSubject(subject, options)
+    } catch (error) {
+      console.error(`[${subject.id}] FAILED: ${error instanceof Error ? error.message : String(error)}`)
+      return
+    }
+    const summary = {
+      id: subject.id,
+      name: subject.name,
+      bundleUrl: `/data/subjects/${subject.id}/index.json`,
+      bundleHash: hashJson(bundle),
+      questionCount: bundle.questions.length,
+      nodeCount: bundle.syllabus.length,
+    }
+    const existingIdx = manifestSubjects.findIndex((entry) => entry.id === subject.id)
+    if (existingIdx >= 0) manifestSubjects[existingIdx] = summary
+    else manifestSubjects.push(summary)
+    await writeManifest()
+  })
 }
 
 main().catch((error) => {
