@@ -1,0 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Caveat:wght@500;700&family=Karla:wght@300;400;500&display=swap');
+
+:root {
+  --paper: #f6efde;
+  --paper-deep: #ede4cd;
+  --paper-card: #fcf6e4;
+  --ink: #2c2418;
+  --ink-soft: #6f614b;
+  --gold: #b48a3e;
+  --gold-soft: #d4ad6e;
+  --rose: #f0c8c0;
+  --butter: #f4dba0;
+  --sage: #c9d8b6;
+  --sky: #c8d8e3;
+  --line: rgba(44, 36, 24, 0.18);
+  font-family: 'Karla', sans-serif;
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--ink);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+html, body, #root { min-height: 100vh; }
+body { background: var(--paper); color: var(--ink); }
+button, input { font: inherit; }
+a { color: inherit; text-decoration: none; }
+
+.app-shell { min-height: 100vh; }
+.app-main { display: block; }
+.app-main--bleed { width: 100%; }
+
+.spin { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Resume Modal (pastel) ── */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 40;
+  display: grid; place-items: center;
+  padding: 20px;
+  background: rgba(44, 36, 24, 0.55);
+  backdrop-filter: blur(6px);
+  font-family: 'Karla', sans-serif;
+}
+.modal-card {
+  position: relative;
+  max-width: 36rem; width: min(100%, 36rem);
+  background: var(--paper-card);
+  border: 1px solid var(--ink);
+  border-radius: 18px 18px 6px 6px;
+  padding: 28px 28px 22px;
+  box-shadow: 0 30px 60px -20px rgba(40, 24, 8, 0.55);
+  overflow: hidden;
+}
+.modal-card::before {
+  content: '';
+  position: absolute; left: 0; right: 0; top: 0;
+  height: 6px;
+  background: linear-gradient(90deg, var(--rose), var(--butter), var(--sage), var(--sky));
+}
+.modal-card__icon {
+  width: 44px; height: 44px;
+  border-radius: 999px;
+  display: grid; place-items: center;
+  background: var(--rose);
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  margin: 6px 0 18px;
+}
+.modal-card__copy { display: flex; flex-direction: column; gap: 8px; }
+.modal-card .eyebrow {
+  font-family: 'Caveat', cursive;
+  font-size: 20px;
+  color: var(--gold);
+  margin: 0;
+}
+.modal-card h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 400;
+  font-size: clamp(24px, 3vw, 30px);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 2px 0 4px;
+}
+.modal-card__summary {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.modal-card__meta {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+.modal-card__actions {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line);
+}
+
+.modal-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 18px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  background: var(--paper);
+  color: var(--ink);
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+.modal-btn:hover { background: var(--gold-soft); }
+.modal-btn--primary { background: var(--ink); color: var(--paper); }
+.modal-btn--primary:hover { background: var(--gold); border-color: var(--gold); color: var(--paper); }
+.modal-btn--danger { background: var(--paper); color: #8a3324; border-color: #8a3324; }
+.modal-btn--danger:hover { background: #c64f3a; color: var(--paper); border-color: #8a3324; }
