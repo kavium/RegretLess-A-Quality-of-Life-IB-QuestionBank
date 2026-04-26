@@ -5,9 +5,6 @@ on:
   schedule:
     - cron: '0 5 * * *'
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 concurrency:
   group: scrape
   cancel-in-progress: false
@@ -20,12 +17,12 @@ jobs:
       contents: write
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install deps
