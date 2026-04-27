@@ -1,5 +1,7 @@
 import { CheckCircle2, ChevronDown, ChevronLeft, Flag, RefreshCw, Shuffle, SlidersHorizontal, BookOpen } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import type React from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { SafeHtml } from '../components/SafeHtml'
 import { loadQuestionDetail } from '../lib/data-client'
@@ -13,6 +15,70 @@ import type { LevelCode, PaperCode, QuestionDetail, WorkspaceFilterState } from 
 import './WorkspacePage.css'
 
 const PAPER_TINTS: Record<string, 'rose' | 'butter' | 'sky'> = { '1A': 'rose', '1B': 'butter', '2': 'sky' }
+
+interface VirtualQuestionListProps {
+  questionIds: string[]
+  renderRow: (questionId: string) => React.ReactNode
+}
+
+const VirtualRowInner = memo(function VirtualRowInner({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return <>{children}</>
+})
+
+function VirtualQuestionList({ questionIds, renderRow }: VirtualQuestionListProps) {
+  const parentRef = useRef<HTMLDivElement | null>(null)
+  const [parentOffset, setParentOffset] = useState(0)
+
+  useEffect(() => {
+    const update = () => {
+      if (parentRef.current) {
+        setParentOffset(parentRef.current.getBoundingClientRect().top + window.scrollY)
+      }
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
+  const virtualizer = useWindowVirtualizer({
+    count: questionIds.length,
+    estimateSize: () => 110,
+    overscan: 6,
+    scrollMargin: parentOffset,
+  })
+
+  if (!questionIds.length) {
+    return <div className="ws__list"><div className="ws__empty">No questions match the current filters.</div></div>
+  }
+
+  return (
+    <div ref={parentRef} className="ws__list" style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
+      {virtualizer.getVirtualItems().map((vi) => {
+        const questionId = questionIds[vi.index]
+        return (
+          <div
+            key={questionId}
+            data-index={vi.index}
+            ref={virtualizer.measureElement}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              transform: `translateY(${vi.start - virtualizer.options.scrollMargin}px)`,
+            }}
+          >
+            <VirtualRowInner>{renderRow(questionId)}</VirtualRowInner>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 function toggleValue<T extends string>(items: T[], value: T, fallback: T[]) {
   const next = items.includes(value) ? items.filter((x) => x !== value) : [...items, value]
@@ -144,7 +210,7 @@ export function WorkspacePage() {
   }, [bundle, filters.expandedQuestionId, location.pathname, location.search, selection, subjectId])
 
   if (status === 'loading' || status === 'idle') {
-    return <div className="ws ws--empty"><span>— preparing the next issue —</span></div>
+    return <div className="ws ws--empty"><span>— sautéing the questions —</span></div>
   }
 
   if (status === 'error' || !bundle || !subjectId || !selection || !syllabusIndex) {
@@ -272,118 +338,114 @@ export function WorkspacePage() {
         </div>
       </div>
 
-      <div className="ws__list">
-        {visibleQuestionIds.length ? (
-          visibleQuestionIds.map((questionId) => {
-            const question = questionMap.get(questionId)
-            if (!question) return null
+      <VirtualQuestionList
+        questionIds={visibleQuestionIds}
+        renderRow={(questionId) => {
+          const question = questionMap.get(questionId)
+          if (!question) return null
 
-            const expanded = filters.expandedQuestionId === questionId
-            const qs = userState[questionId]
-            const msRevealed = Boolean(revealedMs[questionId])
-            const paperTint = PAPER_TINTS[question.paper] ?? 'rose'
+          const expanded = filters.expandedQuestionId === questionId
+          const qs = userState[questionId]
+          const msRevealed = Boolean(revealedMs[questionId])
+          const paperTint = PAPER_TINTS[question.paper] ?? 'rose'
 
-            return (
-              <article
-                key={questionId}
-                data-qid={questionId}
-                className={`ws__q${expanded ? ' is-expanded' : ''}${qs?.difficult ? ' is-difficult' : ''}${qs?.completed ? ' is-completed' : ''}`}
-              >
-                <div className="ws__q-row">
+          return (
+            <article
+              data-qid={questionId}
+              className={`ws__q${expanded ? ' is-expanded' : ''}${qs?.difficult ? ' is-difficult' : ''}${qs?.completed ? ' is-completed' : ''}`}
+            >
+              <div className="ws__q-row">
+                <button
+                  type="button"
+                  className="ws__q-toggle"
+                  onClick={() => updateFilters({ ...filters, expandedQuestionId: expanded ? null : questionId })}
+                >
+                  <div className="ws__q-headline">
+                    <span className="ws__q-ref">{question.referenceCode}</span>
+                    <span className={`ws__q-tag ws__q-tag--${paperTint}`}>{question.paper === '2' ? 'Paper 2' : `Paper ${question.paper}`}</span>
+                    <span className="ws__q-tag ws__q-tag--sage">{question.level}</span>
+                    {qs?.completed ? <span className="ws__q-tag ws__q-tag--done"><CheckCircle2 size={10} />completed</span> : null}
+                    {qs?.difficult ? <span className="ws__q-tag ws__q-tag--hard"><Flag size={10} />difficult</span> : null}
+                  </div>
+                  <p className="ws__q-crumbs">{describeQuestion(question)}</p>
+                </button>
+
+                <div className="ws__q-actions">
                   <button
                     type="button"
-                    className="ws__q-toggle"
+                    className={`ws__icon-btn${qs?.completed ? ' is-active' : ''}`}
+                    title="Mark completed"
+                    onClick={() =>
+                      setUserState((cur) => ({
+                        ...cur,
+                        [questionId]: {
+                          completed: !cur[questionId]?.completed,
+                          difficult: cur[questionId]?.difficult ?? false,
+                          updatedAt: new Date().toISOString(),
+                        },
+                      }))
+                    }
+                  >
+                    <CheckCircle2 size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className={`ws__icon-btn is-danger${qs?.difficult ? ' is-active' : ''}`}
+                    title="Toggle difficult"
+                    onClick={() =>
+                      setUserState((cur) => ({
+                        ...cur,
+                        [questionId]: {
+                          completed: cur[questionId]?.completed ?? false,
+                          difficult: !cur[questionId]?.difficult,
+                          updatedAt: new Date().toISOString(),
+                        },
+                      }))
+                    }
+                  >
+                    <Flag size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="ws__icon-btn"
+                    title={expanded ? 'Collapse' : 'Expand'}
                     onClick={() => updateFilters({ ...filters, expandedQuestionId: expanded ? null : questionId })}
                   >
-                    <div className="ws__q-headline">
-                      <span className="ws__q-ref">{question.referenceCode}</span>
-                      <span className={`ws__q-tag ws__q-tag--${paperTint}`}>{question.paper === '2' ? 'Paper 2' : `Paper ${question.paper}`}</span>
-                      <span className="ws__q-tag ws__q-tag--sage">{question.level}</span>
-                      {qs?.completed ? <span className="ws__q-tag ws__q-tag--done"><CheckCircle2 size={10} />completed</span> : null}
-                      {qs?.difficult ? <span className="ws__q-tag ws__q-tag--hard"><Flag size={10} />difficult</span> : null}
-                    </div>
-                    <p className="ws__q-crumbs">{describeQuestion(question)}</p>
+                    <ChevronDown size={16} className={expanded ? 'ws__chev ws__chev--open' : 'ws__chev'} />
                   </button>
-
-                  <div className="ws__q-actions">
-                    <button
-                      type="button"
-                      className={`ws__icon-btn${qs?.completed ? ' is-active' : ''}`}
-                      title="Mark completed"
-                      onClick={() =>
-                        setUserState((cur) => ({
-                          ...cur,
-                          [questionId]: {
-                            completed: !cur[questionId]?.completed,
-                            difficult: cur[questionId]?.difficult ?? false,
-                            updatedAt: new Date().toISOString(),
-                          },
-                        }))
-                      }
-                    >
-                      <CheckCircle2 size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      className={`ws__icon-btn is-danger${qs?.difficult ? ' is-active' : ''}`}
-                      title="Toggle difficult"
-                      onClick={() =>
-                        setUserState((cur) => ({
-                          ...cur,
-                          [questionId]: {
-                            completed: cur[questionId]?.completed ?? false,
-                            difficult: !cur[questionId]?.difficult,
-                            updatedAt: new Date().toISOString(),
-                          },
-                        }))
-                      }
-                    >
-                      <Flag size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      className="ws__icon-btn"
-                      title={expanded ? 'Collapse' : 'Expand'}
-                      onClick={() => updateFilters({ ...filters, expandedQuestionId: expanded ? null : questionId })}
-                    >
-                      <ChevronDown size={16} className={expanded ? 'ws__chev ws__chev--open' : 'ws__chev'} />
-                    </button>
-                  </div>
                 </div>
+              </div>
 
-                {expanded ? (
-                  <div className="ws__q-detail">
-                    {(() => {
-                      const detail = details[questionId]
-                      if (!detail || detail === 'loading') {
-                        return <div className="ws__q-question">— loading question —</div>
-                      }
-                      if (detail === 'error') {
-                        return <div className="ws__q-question">— failed to load question —</div>
-                      }
-                      return (
-                        <>
-                          <SafeHtml className="ws__q-question" html={detail.questionHtml} />
-                          <button
-                            type="button"
-                            className="ws__q-reveal"
-                            onClick={() => setRevealedMs((cur) => ({ ...cur, [questionId]: !cur[questionId] }))}
-                          >
-                            <BookOpen size={14} /> {msRevealed ? 'hide mark scheme' : 'reveal mark scheme'}
-                          </button>
-                          {msRevealed ? <SafeHtml className="ws__ms" html={detail.markschemeHtml} /> : null}
-                        </>
-                      )
-                    })()}
-                  </div>
-                ) : null}
-              </article>
-            )
-          })
-        ) : (
-          <div className="ws__empty">No questions match the current filters.</div>
-        )}
-      </div>
+              {expanded ? (
+                <div className="ws__q-detail">
+                  {(() => {
+                    const detail = details[questionId]
+                    if (!detail || detail === 'loading') {
+                      return <div className="ws__q-question">— loading question —</div>
+                    }
+                    if (detail === 'error') {
+                      return <div className="ws__q-question">— failed to load question —</div>
+                    }
+                    return (
+                      <>
+                        <SafeHtml className="ws__q-question" html={detail.questionHtml} />
+                        <button
+                          type="button"
+                          className="ws__q-reveal"
+                          onClick={() => setRevealedMs((cur) => ({ ...cur, [questionId]: !cur[questionId] }))}
+                        >
+                          <BookOpen size={14} /> {msRevealed ? 'hide mark scheme' : 'reveal mark scheme'}
+                        </button>
+                        {msRevealed ? <SafeHtml className="ws__ms" html={detail.markschemeHtml} /> : null}
+                      </>
+                    )
+                  })()}
+                </div>
+              ) : null}
+            </article>
+          )
+        }}
+      />
 
       <footer className="ws__foot">
         <span>RegretLess · IB Questionbank</span>

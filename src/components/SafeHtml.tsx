@@ -2,6 +2,13 @@ import DOMPurify from 'dompurify'
 import { useEffect, useMemo, useRef } from 'react'
 import { typesetMath } from '../lib/mathjax'
 
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node instanceof HTMLImageElement) {
+    if (!node.getAttribute('loading')) node.setAttribute('loading', 'lazy')
+    if (!node.getAttribute('decoding')) node.setAttribute('decoding', 'async')
+  }
+})
+
 interface SafeHtmlProps {
   html: string
   className?: string

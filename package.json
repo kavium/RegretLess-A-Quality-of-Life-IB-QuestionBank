@@ -14,6 +14,7 @@
     "sample-data": "node ./scripts/ingest-questionbank.mjs --sample"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.13.24",
     "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
     "dompurify": "^3.4.1",

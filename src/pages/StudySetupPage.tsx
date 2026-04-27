@@ -82,7 +82,7 @@ export function StudySetupPage() {
   )
 
   if (status === 'loading' || status === 'idle') {
-    return <div className="setup setup--empty"><span>— preparing the next issue —</span></div>
+    return <div className="setup setup--empty"><span>— sautéing the questions —</span></div>
   }
   if (status === 'error' || !bundle || !syllabusIndex || !subjectId) {
     return <div className="setup setup--empty"><span>— this volume is missing. {error} —</span></div>
