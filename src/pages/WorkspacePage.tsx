@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronDown, ChevronLeft, Flag, RefreshCw, Shuffle, SlidersHorizontal, BookOpen } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronLeft, Flag, RefreshCw, Shuffle, SlidersHorizontal, BookOpen, X } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
@@ -15,6 +15,7 @@ import type { LevelCode, PaperCode, QuestionDetail, WorkspaceFilterState } from 
 import './WorkspacePage.css'
 
 const PAPER_TINTS: Record<string, 'rose' | 'butter' | 'sky'> = { '1A': 'rose', '1B': 'butter', '2': 'sky' }
+const COMPLETED_TIP_KEY = 'qol-ib-qb:completed-tip-shown'
 
 interface VirtualQuestionListProps {
   questionIds: string[]
@@ -92,6 +93,7 @@ export function WorkspacePage() {
   const [revealedMs, setRevealedMs] = useState<Record<string, boolean>>({})
   const [details, setDetails] = useState<Record<string, QuestionDetail | 'loading' | 'error'>>({})
   const [refreshState, setRefreshState] = useState<'idle' | 'working'>('idle')
+  const [completedTip, setCompletedTip] = useState(false)
   const restoreAttempted = useRef(false)
 
   useEffect(() => {
@@ -122,16 +124,38 @@ export function WorkspacePage() {
     return buildCanonicalQuestionSequence(bundle, selection, syllabusIndex)
   }, [bundle, selection, syllabusIndex])
 
+  const completedSnapshotRef = useRef<Set<string>>(new Set())
+  const orderKey = useMemo(
+    () =>
+      [
+        subjectId,
+        searchParams.get('units') ?? '',
+        filters.paperFilters.join(','),
+        filters.levelFilters.join(','),
+        filters.onlyDifficult ? '1' : '0',
+        filters.orderMode,
+        filters.scrambleNonce,
+      ].join('|'),
+    [subjectId, searchParams, filters.paperFilters, filters.levelFilters, filters.onlyDifficult, filters.orderMode, filters.scrambleNonce],
+  )
+  const orderKeyRef = useRef<string>('')
+  if (orderKeyRef.current !== orderKey) {
+    completedSnapshotRef.current = new Set(
+      Object.keys(userState).filter((id) => userState[id]?.completed),
+    )
+    orderKeyRef.current = orderKey
+  }
+
   const visibleQuestionIds = useMemo(() => {
     if (!bundle) return []
     return orderQuestionIds(
       applyQuestionFilters(bundle, canonicalQuestionIds, filters, userState),
       bundle,
-      userState,
+      completedSnapshotRef.current,
       filters.orderMode,
       filters.scrambleNonce,
     )
-  }, [bundle, canonicalQuestionIds, filters, userState])
+  }, [bundle, canonicalQuestionIds, filters, userState, orderKey])
 
   const availablePapers = useMemo(() => (bundle ? getAvailablePapers(bundle) : []), [bundle])
   const availableLevels = useMemo(() => (bundle ? getAvailableLevels(bundle) : []), [bundle])
@@ -371,7 +395,8 @@ export function WorkspacePage() {
                     type="button"
                     className={`ws__icon-btn${qs?.completed ? ' is-active' : ''}`}
                     title="Mark completed"
-                    onClick={() =>
+                    onClick={() => {
+                      const wasCompleted = Boolean(userState[questionId]?.completed)
                       setUserState((cur) => ({
                         ...cur,
                         [questionId]: {
@@ -380,7 +405,11 @@ export function WorkspacePage() {
                           updatedAt: new Date().toISOString(),
                         },
                       }))
-                    }
+                      if (!wasCompleted && !sessionStorage.getItem(COMPLETED_TIP_KEY)) {
+                        sessionStorage.setItem(COMPLETED_TIP_KEY, '1')
+                        setCompletedTip(true)
+                      }
+                    }}
                   >
                     <CheckCircle2 size={16} />
                   </button>
@@ -448,6 +477,15 @@ export function WorkspacePage() {
         <span className="ws__foot-rule" />
         <span>No regrets. Just marks. · M26</span>
       </footer>
+
+      {completedTip ? (
+        <div className="ws__tip" role="status">
+          <span>Questions selected as completed appear at the bottom of the question list on next scramble or page refresh.</span>
+          <button type="button" className="ws__tip-x" aria-label="Dismiss" onClick={() => setCompletedTip(false)}>
+            <X size={12} />
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

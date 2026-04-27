@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowRight, ChevronLeft, Layers2, RotateCcw } from 'lucide-react'
+import { ArrowRight, ChevronLeft, Layers2, RotateCcw, X } from 'lucide-react'
 import { useSubjectBundle } from '../lib/use-subject-bundle'
 import { buildCanonicalQuestionSequence } from '../lib/questions'
 import {
   buildSyllabusIndex,
   emptySelection,
   getNodeSelectionState,
-  getSelectionLabels,
+  getSelectionEntries,
   selectAllUnits,
   toggleSelectionNode,
 } from '../lib/selection'
@@ -76,8 +76,8 @@ export function StudySetupPage() {
     return buildCanonicalQuestionSequence(bundle, selection, syllabusIndex).length
   }, [bundle, selection, syllabusIndex])
 
-  const selectionLabels = useMemo(
-    () => (syllabusIndex ? getSelectionLabels(selection, syllabusIndex) : []),
+  const selectionEntries = useMemo(
+    () => (syllabusIndex ? getSelectionEntries(selection, syllabusIndex) : []),
     [selection, syllabusIndex],
   )
 
@@ -128,28 +128,40 @@ export function StudySetupPage() {
           <h3 className="setup__panel-name">Selection</h3>
           <div className="setup__panel-rule" />
           <ul className="setup__panel-stats">
-            <li><span>Selected units</span><b>{selectionLabels.length}</b></li>
+            <li><span>Selected units</span><b>{selectionEntries.length}</b></li>
             <li><span>Questions</span><b>{questionCount.toLocaleString()}</b></li>
             <li><span>Total</span><b>{total.toLocaleString()}</b></li>
           </ul>
 
           <div className="setup__chips">
-            {selectionLabels.length
-              ? selectionLabels.map((lbl) => <span key={lbl} className="setup__chip">{lbl}</span>)
+            {selectionEntries.length
+              ? selectionEntries.map((entry) => (
+                  <span key={entry.id} className="setup__chip">
+                    <span className="setup__chip-label">{entry.label}</span>
+                    <button
+                      type="button"
+                      className="setup__chip-x"
+                      aria-label={`Remove ${entry.label}`}
+                      onClick={() => setSelection((cur) => toggleSelectionNode(cur, syllabusIndex, entry.id))}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))
               : <span className="setup__chip setup__chip--empty">no units chosen yet</span>}
           </div>
 
           <button
             type="button"
             className="setup__go"
-            disabled={!selectionLabels.length}
+            disabled={!selectionEntries.length}
             onClick={() =>
               navigate(buildWorkspacePath(subjectId, selection, defaultFilters), {
                 state: { selection: serializeSelection(selection) },
               })
             }
           >
-            Open the workspace
+            let's start cooking
             <ArrowRight size={16} />
           </button>
         </aside>

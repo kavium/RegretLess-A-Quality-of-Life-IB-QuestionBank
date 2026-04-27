@@ -220,11 +220,30 @@
   background: var(--butter);
   border: 1px solid var(--ink);
   border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 4px;
+  position: relative;
+  transition: padding-right 120ms ease;
 }
 .setup__chip:nth-child(2n) { background: var(--rose); }
 .setup__chip:nth-child(3n) { background: var(--sage); }
 .setup__chip:nth-child(4n) { background: var(--sky); }
 .setup__chip--empty { background: var(--paper); color: var(--ink-soft); font-style: italic; font-family: 'Cormorant Garamond', serif; }
+
+.setup__chip-label { display: inline-block; }
+.setup__chip-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 0; height: 16px;
+  padding: 0; margin-left: 0;
+  background: transparent; border: 0; cursor: pointer;
+  color: var(--ink); opacity: 0;
+  overflow: hidden;
+  transition: width 120ms ease, opacity 120ms ease, margin-left 120ms ease;
+}
+.setup__chip:hover .setup__chip-x,
+.setup__chip:focus-within .setup__chip-x {
+  width: 16px; opacity: 1; margin-left: 2px;
+}
+.setup__chip-x:hover { color: #c0392b; }
 
 .setup__go {
   width: 100%;

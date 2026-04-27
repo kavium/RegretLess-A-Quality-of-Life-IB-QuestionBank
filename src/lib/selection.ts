@@ -201,9 +201,13 @@ export function getNodeSelectionState(selection: NormalizedSelection, index: Syl
 }
 
 export function getSelectionLabels(selection: NormalizedSelection, index: SyllabusIndex) {
+  return getSelectionEntries(selection, index).map((entry) => entry.label)
+}
+
+export function getSelectionEntries(selection: NormalizedSelection, index: SyllabusIndex) {
   return [...selection.umbrellaIds, ...selection.subunitIds]
     .map((nodeId) => index.nodeMap.get(nodeId))
     .filter((node): node is SyllabusNode => Boolean(node))
     .sort((left, right) => left.canonicalOrder - right.canonicalOrder)
-    .map((node) => node.label)
+    .map((node) => ({ id: node.id, label: node.label }))
 }

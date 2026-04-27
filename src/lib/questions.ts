@@ -101,7 +101,7 @@ export function applyQuestionFilters(
 export function orderQuestionIds(
   questionIds: string[],
   bundle: SubjectBundle,
-  userState: UserQuestionStateMap,
+  completedSnapshot: Set<string>,
   orderMode: OrderMode,
   scrambleNonce: number,
 ) {
@@ -109,7 +109,7 @@ export function orderQuestionIds(
   const completed: string[] = []
 
   for (const questionId of questionIds) {
-    if (userState[questionId]?.completed) {
+    if (completedSnapshot.has(questionId)) {
       completed.push(questionId)
     } else {
       incomplete.push(questionId)

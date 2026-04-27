@@ -18,14 +18,8 @@ function AppFrame() {
     void ensureMathJax()
   }, [])
 
-  const currentPath = `${location.pathname}${location.search}`
-  const onWorkspaceRoute = location.pathname.endsWith('/workspace')
-  const shouldOfferResume = Boolean(
-    resumeSnapshot &&
-      !resumeDismissed &&
-      !onWorkspaceRoute &&
-      resumeSnapshot.workspaceUrl !== currentPath,
-  )
+  const onSubjectPicker = location.pathname === '/'
+  const shouldOfferResume = Boolean(resumeSnapshot && !resumeDismissed && onSubjectPicker)
   return (
     <div className="app-shell">
       <main className="app-main app-main--bleed">
