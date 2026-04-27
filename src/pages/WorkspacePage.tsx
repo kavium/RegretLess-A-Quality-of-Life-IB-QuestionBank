@@ -1,6 +1,6 @@
 import { CheckCircle2, ChevronDown, ChevronLeft, Flag, RefreshCw, Shuffle, SlidersHorizontal, BookOpen } from 'lucide-react'
 import type React from 'react'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { SafeHtml } from '../components/SafeHtml'
@@ -21,22 +21,15 @@ interface VirtualQuestionListProps {
   renderRow: (questionId: string) => React.ReactNode
 }
 
-const VirtualRowInner = memo(function VirtualRowInner({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  return <>{children}</>
-})
-
 function VirtualQuestionList({ questionIds, renderRow }: VirtualQuestionListProps) {
   const parentRef = useRef<HTMLDivElement | null>(null)
   const [parentOffset, setParentOffset] = useState(0)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const update = () => {
       if (parentRef.current) {
-        setParentOffset(parentRef.current.getBoundingClientRect().top + window.scrollY)
+        const rect = parentRef.current.getBoundingClientRect()
+        setParentOffset(rect.top + window.scrollY)
       }
     }
     update()
@@ -46,8 +39,8 @@ function VirtualQuestionList({ questionIds, renderRow }: VirtualQuestionListProp
 
   const virtualizer = useWindowVirtualizer({
     count: questionIds.length,
-    estimateSize: () => 110,
-    overscan: 6,
+    estimateSize: () => 140,
+    overscan: 5,
     scrollMargin: parentOffset,
   })
 
@@ -55,9 +48,11 @@ function VirtualQuestionList({ questionIds, renderRow }: VirtualQuestionListProp
     return <div className="ws__list"><div className="ws__empty">No questions match the current filters.</div></div>
   }
 
+  const items = virtualizer.getVirtualItems()
+
   return (
     <div ref={parentRef} className="ws__list" style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
-      {virtualizer.getVirtualItems().map((vi) => {
+      {items.map((vi) => {
         const questionId = questionIds[vi.index]
         return (
           <div
@@ -70,9 +65,10 @@ function VirtualQuestionList({ questionIds, renderRow }: VirtualQuestionListProp
               left: 0,
               right: 0,
               transform: `translateY(${vi.start - virtualizer.options.scrollMargin}px)`,
+              contain: 'layout paint',
             }}
           >
-            <VirtualRowInner>{renderRow(questionId)}</VirtualRowInner>
+            {renderRow(questionId)}
           </div>
         )
       })}
