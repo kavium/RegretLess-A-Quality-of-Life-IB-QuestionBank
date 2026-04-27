@@ -105,20 +105,31 @@
 .spin { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.ws > .ws__tip,
-.ws__tip {
-  position: fixed; bottom: 22px; right: 22px; z-index: 50;
-  max-width: 320px;
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 12px 14px;
+.ws__complete-wrap { position: relative; display: inline-flex; }
+.ws__bubble {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 60;
+  width: 260px;
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 12px;
   background: var(--ink); color: var(--paper);
-  border: 1px solid var(--ink);
-  border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  font-family: 'Cormorant Garamond', serif; font-size: 14px; line-height: 1.4;
-  animation: ws-tip-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.22);
+  font-family: 'Cormorant Garamond', serif; font-size: 13px; line-height: 1.4;
+  animation: ws-bubble-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.ws__tip-x {
+.ws__bubble::before {
+  content: '';
+  position: absolute;
+  top: -6px; right: 12px;
+  width: 12px; height: 12px;
+  background: var(--ink);
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+.ws__bubble-x {
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   background: transparent; color: var(--paper);
@@ -126,8 +137,8 @@
   cursor: pointer; opacity: 0.7;
   transition: opacity 120ms ease;
 }
-.ws__tip-x:hover { opacity: 1; }
-@keyframes ws-tip-in {
-  from { transform: translateY(12px); opacity: 0; }
+.ws__bubble-x:hover { opacity: 1; }
+@keyframes ws-bubble-in {
+  from { transform: translateY(-6px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }

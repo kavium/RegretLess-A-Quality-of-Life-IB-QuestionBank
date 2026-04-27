@@ -93,7 +93,7 @@ export function WorkspacePage() {
   const [revealedMs, setRevealedMs] = useState<Record<string, boolean>>({})
   const [details, setDetails] = useState<Record<string, QuestionDetail | 'loading' | 'error'>>({})
   const [refreshState, setRefreshState] = useState<'idle' | 'working'>('idle')
-  const [completedTip, setCompletedTip] = useState(false)
+  const [completedTipFor, setCompletedTipFor] = useState<string | null>(null)
   const restoreAttempted = useRef(false)
 
   useEffect(() => {
@@ -392,27 +392,37 @@ export function WorkspacePage() {
                 </button>
 
                 <div className="ws__q-actions">
-                  <button
-                    type="button"
-                    className={`ws__icon-btn${qs?.completed ? ' is-active' : ''}`}
-                    title="Mark completed"
-                    onClick={() => {
-                      setUserState((cur) => ({
-                        ...cur,
-                        [questionId]: {
-                          completed: !cur[questionId]?.completed,
-                          difficult: cur[questionId]?.difficult ?? false,
-                          updatedAt: new Date().toISOString(),
-                        },
-                      }))
-                      if (!sessionStorage.getItem(COMPLETED_TIP_KEY)) {
-                        sessionStorage.setItem(COMPLETED_TIP_KEY, '1')
-                        setCompletedTip(true)
-                      }
-                    }}
-                  >
-                    <CheckCircle2 size={16} />
-                  </button>
+                  <div className="ws__complete-wrap">
+                    <button
+                      type="button"
+                      className={`ws__icon-btn${qs?.completed ? ' is-active' : ''}`}
+                      title="Mark completed"
+                      onClick={() => {
+                        setUserState((cur) => ({
+                          ...cur,
+                          [questionId]: {
+                            completed: !cur[questionId]?.completed,
+                            difficult: cur[questionId]?.difficult ?? false,
+                            updatedAt: new Date().toISOString(),
+                          },
+                        }))
+                        if (!sessionStorage.getItem(COMPLETED_TIP_KEY)) {
+                          sessionStorage.setItem(COMPLETED_TIP_KEY, '1')
+                          setCompletedTipFor(questionId)
+                        }
+                      }}
+                    >
+                      <CheckCircle2 size={16} />
+                    </button>
+                    {completedTipFor === questionId ? (
+                      <div className="ws__bubble" role="status">
+                        <span>Questions selected as completed appear at the bottom of the question list on next scramble or page refresh.</span>
+                        <button type="button" className="ws__bubble-x" aria-label="Dismiss" onClick={() => setCompletedTipFor(null)}>
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                   <button
                     type="button"
                     className={`ws__icon-btn is-danger${qs?.difficult ? ' is-active' : ''}`}
@@ -478,14 +488,6 @@ export function WorkspacePage() {
         <span>No regrets. Just marks. · M26</span>
       </footer>
 
-      {completedTip ? (
-        <div className="ws__tip" role="status">
-          <span>Questions selected as completed appear at the bottom of the question list on next scramble or page refresh.</span>
-          <button type="button" className="ws__tip-x" aria-label="Dismiss" onClick={() => setCompletedTip(false)}>
-            <X size={12} />
-          </button>
-        </div>
-      ) : null}
     </div>
   )
 }
