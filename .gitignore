@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code
+.claude/
+
+# Test/coverage output
+coverage/
+
+# Env
+.env
+.env.*
+!.env.example
