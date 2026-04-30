@@ -51,7 +51,7 @@ function parseArgs(argv) {
   return options
 }
 
-async function fetchHtml(url, retries = 5) {
+async function fetchHtml(url, retries = 10) {
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -79,7 +79,7 @@ async function fetchHtml(url, retries = 5) {
       clearTimeout(timeoutId)
     }
 
-    const backoff = Math.min(30000, 1000 * 2 ** (attempt - 1)) + Math.floor(Math.random() * 500)
+    const backoff = Math.min(60000, 2000 * 2 ** (attempt - 1)) + Math.floor(Math.random() * 1000)
     await new Promise((resolve) => setTimeout(resolve, backoff))
   }
 
