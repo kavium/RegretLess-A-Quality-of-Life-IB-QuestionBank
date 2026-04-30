@@ -110,7 +110,7 @@ export function StudySetupPage() {
       <header className="setup__masthead">
         <div className="setup__masthead-row">
           <div className="setup__brand">
-            <span className="setup__brand-mark">RL</span>
+            <Link to="/" state={{ fromLogo: true }} className="setup__brand-mark" aria-label="Home">RL</Link>
             <span className="setup__brand-pipe" />
             <span className="setup__brand-name">RegretLess · {bundle.subject.name}</span>
           </div>

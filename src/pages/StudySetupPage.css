@@ -51,7 +51,9 @@
   font-family: 'Cormorant Garamond', serif;
   font-style: italic; font-weight: 500; font-size: 32px;
   color: var(--gold); letter-spacing: 0.05em;
+  text-decoration: none; cursor: pointer; transition: opacity 0.2s;
 }
+.setup__brand-mark:hover { opacity: 0.7; }
 .setup__brand-pipe { width: 1px; height: 28px; background: var(--line); }
 .setup__brand-name {
   font-family: 'Cormorant Garamond', serif;

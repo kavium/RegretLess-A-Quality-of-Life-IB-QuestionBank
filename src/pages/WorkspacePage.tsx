@@ -3,7 +3,7 @@ import type React from 'react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { SafeHtml } from '../components/SafeHtml'
 import { loadQuestionDetail } from '../lib/data-client'
 import { useDataContext } from '../lib/data-context'
@@ -263,7 +263,7 @@ export function WorkspacePage() {
       <header className="ws__masthead">
         <div className="ws__masthead-row">
           <div className="ws__brand">
-            <span className="ws__brand-mark">RL</span>
+            <Link to="/" state={{ fromLogo: true }} className="ws__brand-mark" aria-label="Home">RL</Link>
             <span className="ws__brand-pipe" />
             <span className="ws__brand-name">RegretLess · Workspace</span>
           </div>

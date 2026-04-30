@@ -38,7 +38,8 @@
 .ws__masthead { max-width: 1320px; margin: 0 auto 36px; border-top: 2px solid var(--ink); border-bottom: 1px solid var(--line); padding: 18px 0 28px; }
 .ws__masthead-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .ws__brand { display: flex; align-items: center; gap: 14px; }
-.ws__brand-mark { font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 500; font-size: 32px; color: var(--gold); letter-spacing: 0.05em; }
+.ws__brand-mark { font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 500; font-size: 32px; color: var(--gold); letter-spacing: 0.05em; text-decoration: none; cursor: pointer; transition: opacity 0.2s; }
+.ws__brand-mark:hover { opacity: 0.7; }
 .ws__brand-pipe { width: 1px; height: 28px; background: var(--line); }
 .ws__brand-name { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 18px; letter-spacing: 0.06em; }
 .ws__masthead-meta { display: flex; align-items: center; gap: 10px; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-soft); flex-wrap: wrap; }

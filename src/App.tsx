@@ -19,7 +19,13 @@ function AppFrame() {
   }, [])
 
   const onSubjectPicker = location.pathname === '/'
-  const shouldOfferResume = Boolean(resumeSnapshot && !resumeDismissed && onSubjectPicker)
+  const cameFromLogo = (location.state as { fromLogo?: boolean } | null)?.fromLogo === true
+
+  useEffect(() => {
+    if (cameFromLogo) setResumeDismissed(true)
+  }, [cameFromLogo])
+
+  const shouldOfferResume = Boolean(resumeSnapshot && !resumeDismissed && onSubjectPicker && !cameFromLogo)
   return (
     <div className="app-shell">
       <main className="app-main app-main--bleed">
