@@ -167,19 +167,33 @@ async function ingestSubject(subject, options) {
     )
   }
 
+  const cachedSectionOrder = existingIndex?.sectionQuestionOrder ?? {}
+
   await runWithConcurrency(syllabus, SECTION_CONCURRENCY, async (section) => {
     const sectionUrl = new URL(`syllabus_sections/${section.id}.html`, syllabusUrl).toString()
-    let sectionHtml
+    let sectionQuestions = null
 
-    try {
-      sectionHtml = await fetchHtml(sectionUrl)
-    } catch (error) {
-      console.warn(`Skipping section ${section.id}: ${error instanceof Error ? error.message : String(error)}`)
-      sectionQuestionOrder[section.id] = []
-      return
+    const cachedIds = cachedSectionOrder[section.id]
+    if (Array.isArray(cachedIds) && cachedIds.length > 0) {
+      const allCached = await Promise.all(
+        cachedIds.map(async (qid) => metaMap.has(qid) && (await fileExists(path.join(questionsDir, `${qid}.json`)))),
+      )
+      if (allCached.every(Boolean)) {
+        sectionQuestions = cachedIds.map((qid) => ({ questionId: qid, url: '' }))
+      }
     }
 
-    const sectionQuestions = parseSectionPage(sectionHtml, sectionUrl)
+    if (!sectionQuestions) {
+      let sectionHtml
+      try {
+        sectionHtml = await fetchHtml(sectionUrl)
+      } catch (error) {
+        console.warn(`Skipping section ${section.id}: ${error instanceof Error ? error.message : String(error)}`)
+        sectionQuestionOrder[section.id] = []
+        return
+      }
+      sectionQuestions = parseSectionPage(sectionHtml, sectionUrl)
+    }
     const includedQuestionIds = []
     const positionByQuestionId = new Map()
 
