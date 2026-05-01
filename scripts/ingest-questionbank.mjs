@@ -262,7 +262,17 @@ async function ingestSubject(subject, options) {
     const cachedIds = cachedSectionOrder[section.id]
     if (Array.isArray(cachedIds) && cachedIds.length > 0) {
       const allCached = await Promise.all(
-        cachedIds.map(async (qid) => metaMap.has(qid) && (await fileExists(path.join(questionsDir, `${qid}.json`)))),
+        cachedIds.map(async (qid) => {
+          if (!metaMap.has(qid)) return false
+          const detailPath = path.join(questionsDir, `${qid}.json`)
+          if (!(await fileExists(detailPath))) return false
+          try {
+            const cached = JSON.parse(await readFile(detailPath, 'utf8'))
+            return cached?.schemaVersion === QUESTION_SCHEMA_VERSION
+          } catch {
+            return false
+          }
+        }),
       )
       if (allCached.every(Boolean)) {
         sectionQuestions = cachedIds.map((qid) => ({ questionId: qid, url: '' }))
