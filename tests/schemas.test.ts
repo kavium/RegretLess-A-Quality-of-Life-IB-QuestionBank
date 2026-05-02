@@ -16,6 +16,10 @@ describe('SubjectIdSchema', () => {
     expect(() => SubjectIdSchema.parse('../etc/passwd')).toThrow()
     expect(() => SubjectIdSchema.parse('46/with/slash')).toThrow()
   })
+
+  it('rejects reserved prototype-polluting keys', () => {
+    expect(() => SubjectIdSchema.parse('__proto__')).toThrow()
+  })
 })
 
 describe('QuestionRecordSchema', () => {
@@ -81,10 +85,29 @@ describe('SubjectManifestSchema', () => {
           {
             id: 'math',
             name: 'Math',
-            bundleUrl: 'https://x',
+            bundleUrl: '/data/subjects/math/index-0123456789abcdef0123456789abcdef01234567.json',
             bundleHash: 'abc',
             questionCount: 'lots',
             nodeCount: 0,
+          },
+        ],
+      }),
+    ).toThrow()
+  })
+
+  it('rejects bundle URLs that do not stay under the subject path', () => {
+    expect(() =>
+      SubjectManifestSchema.parse({
+        version: '2026-01-01T00:00:00.000Z',
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        subjects: [
+          {
+            id: 'math',
+            name: 'Math',
+            bundleUrl: '/data/subjects/physics/index-0123456789abcdef0123456789abcdef01234567.json',
+            bundleHash: '0123456789abcdef0123456789abcdef01234567',
+            questionCount: 1,
+            nodeCount: 1,
           },
         ],
       }),

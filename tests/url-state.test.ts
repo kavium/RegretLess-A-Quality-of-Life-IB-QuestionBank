@@ -33,4 +33,8 @@ describe('parseWorkspaceFilters', () => {
     expect(parseWorkspaceFilters(new URLSearchParams('difficult=true')).onlyDifficult).toBe(false)
     expect(parseWorkspaceFilters(new URLSearchParams('difficult=')).onlyDifficult).toBe(false)
   })
+
+  it('drops invalid expanded question ids', () => {
+    expect(parseWorkspaceFilters(new URLSearchParams('expanded=__proto__')).expandedQuestionId).toBeNull()
+  })
 })

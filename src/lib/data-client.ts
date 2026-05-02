@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { getCacheItem, setCacheItem } from './cache'
-import { QuestionDetailSchema, SubjectBundleSchema, SubjectIdSchema, SubjectManifestSchema } from './schemas'
+import { QuestionDetailSchema, QuestionIdSchema, SubjectBundleSchema, SubjectIdSchema, SubjectManifestSchema } from './schemas'
 import type { QuestionDetail, SubjectBundle, SubjectManifest } from '../types'
 
 function normalizeLevel(value: string): 'SL' | 'HL' {
@@ -22,74 +22,103 @@ function normalizeBundle(bundle: SubjectBundle): SubjectBundle {
 }
 
 interface CachedManifestRecord {
+  schemaVersion: number
   data: SubjectManifest
 }
 
 interface CachedBundleRecord {
+  schemaVersion: number
   hash: string
   data: SubjectBundle
 }
 
 interface CachedQuestionDetail {
+  schemaVersion: number
+  bundleHash: string
   data: QuestionDetail
 }
 
-const DATA_BASE_URL = (import.meta.env.VITE_DATA_BASE_URL as string | undefined)?.replace(/\/$/, '')
+const CACHE_SCHEMA_VERSION = 1
+const DATA_BASE_URL = typeof import.meta.env.VITE_DATA_BASE_URL === 'string'
+  ? import.meta.env.VITE_DATA_BASE_URL.replace(/\/$/, '')
+  : null
+
+function getDataBaseUrl() {
+  if (!DATA_BASE_URL) {
+    return new URL(import.meta.env.BASE_URL, window.location.origin)
+  }
+
+  const url = new URL(DATA_BASE_URL)
+  if (!/^https?:$/.test(url.protocol) || url.username || url.password) {
+    throw new Error('Invalid VITE_DATA_BASE_URL')
+  }
+  return url
+}
 
 function assertSubjectId(subjectId: string): asserts subjectId is string {
   const parsed = SubjectIdSchema.safeParse(subjectId)
   if (!parsed.success) throw new Error(`invalid subjectId: ${subjectId}`)
 }
 
-function resolveAssetUrl(path: string) {
-  if (/^https?:\/\//.test(path)) {
-    return path
+function assertQuestionId(questionId: string): asserts questionId is string {
+  const parsed = QuestionIdSchema.safeParse(questionId)
+  if (!parsed.success) throw new Error(`invalid questionId: ${questionId}`)
+}
+
+function resolveAssetUrl(assetPath: string) {
+  if (!assetPath.startsWith('/data/')) {
+    throw new Error(`invalid asset path: ${assetPath}`)
   }
 
-  if (DATA_BASE_URL && path.startsWith('/data/')) {
-    return `${DATA_BASE_URL}${path.replace(/^\/data/, '')}`
+  if (!DATA_BASE_URL) {
+    const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin)
+    return new URL(assetPath.replace(/^\//, ''), baseUrl).toString()
   }
 
-  const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin)
-  return new URL(path.replace(/^\//, ''), baseUrl).toString()
+  const baseUrl = getDataBaseUrl()
+  return new URL(assetPath.replace(/^\/data\//, ''), `${baseUrl.toString().replace(/\/$/, '')}/`).toString()
 }
 
 function imageBaseFor(subjectId: string) {
   assertSubjectId(subjectId)
-  if (DATA_BASE_URL) return `${DATA_BASE_URL}/subjects/${subjectId}/img`
-  const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin)
-  return new URL(`data/subjects/${subjectId}/img`, baseUrl).toString()
+  return resolveAssetUrl(`/data/subjects/${subjectId}/img`)
 }
 
-async function fetchJsonValidated<T>(path: string, schema: z.ZodType<T>): Promise<T> {
-  const response = await fetch(resolveAssetUrl(path), {
+function isCurrentCacheVersion(record: { schemaVersion?: number } | undefined | null) {
+  return record?.schemaVersion === CACHE_SCHEMA_VERSION
+}
+
+async function fetchJsonValidated<T>(assetPath: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(resolveAssetUrl(assetPath), {
     cache: 'no-store',
+    signal,
   })
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch ${path}: ${response.status}`)
+    throw new Error(`Failed to fetch ${assetPath}: ${response.status}`)
   }
 
-  const json = await response.json()
+  const json: unknown = await response.json()
   const parsed = schema.safeParse(json)
   if (!parsed.success) {
-    console.warn(`schema mismatch fetching ${path}:`, parsed.error.issues.slice(0, 3))
-    throw new Error(`schema validation failed for ${path}`)
+    console.warn(`schema mismatch fetching ${assetPath}:`, parsed.error.issues.slice(0, 3))
+    throw new Error(`schema validation failed for ${assetPath}`)
   }
   return parsed.data
 }
 
-export async function loadPublishedManifest(): Promise<SubjectManifest> {
+export async function loadPublishedManifest(signal?: AbortSignal): Promise<SubjectManifest> {
   try {
     const manifest = await fetchJsonValidated(
       `/data/manifest.json?t=${Date.now()}`,
       SubjectManifestSchema,
+      signal,
     )
-    await setCacheItem<CachedManifestRecord>('manifest', { data: manifest })
+    await setCacheItem<CachedManifestRecord>('manifest', { schemaVersion: CACHE_SCHEMA_VERSION, data: manifest })
     return manifest
   } catch (error) {
     const cached = await getCacheItem<CachedManifestRecord>('manifest')
-    if (cached) return cached.data
+    if (cached && isCurrentCacheVersion(cached)) return cached.data
     throw error
   }
 }
@@ -97,6 +126,7 @@ export async function loadPublishedManifest(): Promise<SubjectManifest> {
 export async function loadPublishedSubjectBundle(
   manifest: SubjectManifest,
   subjectId: string,
+  signal?: AbortSignal,
 ): Promise<SubjectBundle> {
   assertSubjectId(subjectId)
   const subject = manifest.subjects.find((entry) => entry.id === subjectId)
@@ -108,13 +138,17 @@ export async function loadPublishedSubjectBundle(
   const cacheKey = `subject:${subjectId}`
   const cached = await getCacheItem<CachedBundleRecord>(cacheKey)
 
-  if (cached?.hash === subject.bundleHash) {
+  if (cached && isCurrentCacheVersion(cached) && cached.hash === subject.bundleHash) {
     return normalizeBundle(cached.data)
   }
 
-  const raw = await fetchJsonValidated(subject.bundleUrl, SubjectBundleSchema)
+  const raw = await fetchJsonValidated(subject.bundleUrl, SubjectBundleSchema, signal)
+  if (raw.subject.id !== subjectId) {
+    throw new Error(`bundle subject mismatch for ${subjectId}`)
+  }
   const bundle = normalizeBundle(raw)
   await setCacheItem<CachedBundleRecord>(cacheKey, {
+    schemaVersion: CACHE_SCHEMA_VERSION,
     hash: subject.bundleHash,
     data: bundle,
   })
@@ -124,25 +158,35 @@ export async function loadPublishedSubjectBundle(
 export async function loadQuestionDetail(
   subjectId: string,
   questionId: string,
+  bundleHash: string,
+  signal?: AbortSignal,
 ): Promise<QuestionDetail> {
   assertSubjectId(subjectId)
-  if (!/^[\w-]+$/.test(questionId)) throw new Error(`invalid questionId: ${questionId}`)
+  assertQuestionId(questionId)
 
   const cacheKey = `question:${subjectId}:${questionId}`
   const cached = await getCacheItem<CachedQuestionDetail>(cacheKey)
-  if (cached) return cached.data
+  if (cached && isCurrentCacheVersion(cached) && cached.bundleHash === bundleHash) return cached.data
 
   const fetched = await fetchJsonValidated(
     `/data/subjects/${subjectId}/q/${questionId}.json`,
     QuestionDetailSchema,
+    signal,
   )
+  if (fetched.questionId !== questionId) {
+    throw new Error(`question detail mismatch for ${questionId}`)
+  }
   const imgBase = imageBaseFor(subjectId)
   const detail: QuestionDetail = {
     ...fetched,
     questionHtml: fetched.questionHtml.replaceAll('__IMG__', imgBase),
     markschemeHtml: fetched.markschemeHtml.replaceAll('__IMG__', imgBase),
   }
-  await setCacheItem<CachedQuestionDetail>(cacheKey, { data: detail })
+  await setCacheItem<CachedQuestionDetail>(cacheKey, {
+    schemaVersion: CACHE_SCHEMA_VERSION,
+    bundleHash,
+    data: detail,
+  })
   return detail
 }
 
@@ -170,8 +214,7 @@ export async function refreshPublishedData(currentManifest: SubjectManifest | nu
     })
     .map((subject) => subject.id)
 
-  await setCacheItem<CachedManifestRecord>('manifest', { data: manifest })
-
+  await setCacheItem<CachedManifestRecord>('manifest', { schemaVersion: CACHE_SCHEMA_VERSION, data: manifest })
   for (const id of changedSubjectIds) {
     await loadPublishedSubjectBundle(manifest, id)
   }

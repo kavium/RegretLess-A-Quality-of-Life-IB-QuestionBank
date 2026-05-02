@@ -2,12 +2,14 @@ import react from '@vitejs/plugin-react'
 import { spawn } from 'node:child_process'
 import { defineConfig, type Plugin } from 'vitest/config'
 
+const SAFE_SUBJECT_ID = /^(?!__proto__$)(?!constructor$)(?!prototype$)[A-Za-z0-9_-]+$/
+
 function refreshApiPlugin(): Plugin {
   let running: Promise<{ ok: boolean; log: string }> | null = null
 
   function runScraper(args: string[] = []) {
     return new Promise<{ ok: boolean; log: string }>((resolve) => {
-      const child = spawn('node', ['scripts/ingest-questionbank.mjs', ...args], {
+      const child = spawn(process.execPath, ['scripts/ingest-questionbank.mjs', ...args], {
         cwd: process.cwd(),
         env: process.env,
       })
@@ -27,8 +29,30 @@ function refreshApiPlugin(): Plugin {
           res.end('Method Not Allowed')
           return
         }
+
+        const origin = req.headers.origin
+        if (origin) {
+          try {
+            const originHost = new URL(origin).host
+            if (originHost !== req.headers.host) {
+              res.statusCode = 403
+              res.end('Forbidden')
+              return
+            }
+          } catch {
+            res.statusCode = 400
+            res.end('Invalid origin')
+            return
+          }
+        }
+
         const url = new URL(req.url ?? '/', 'http://localhost')
         const subjectId = url.searchParams.get('subject')
+        if (subjectId && !SAFE_SUBJECT_ID.test(subjectId)) {
+          res.statusCode = 400
+          res.end('Invalid subject id')
+          return
+        }
         const args = subjectId ? [`--subjects=${subjectId}`] : []
         if (!running) {
           running = runScraper(args).finally(() => {

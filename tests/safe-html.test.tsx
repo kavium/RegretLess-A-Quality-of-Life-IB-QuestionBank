@@ -8,20 +8,18 @@ vi.mock('../src/lib/mathjax', () => ({
 import { SafeHtml } from '../src/components/SafeHtml'
 
 describe('SafeHtml', () => {
-  it('preserves MathML markup so equations are not stripped', () => {
+  it('strips MathML markup instead of allowing active XML namespaces through', () => {
     const { container } = render(
       <SafeHtml html='<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>' />,
     )
-    expect(container.querySelector('math')).not.toBeNull()
-    expect(container.querySelector('mi')?.textContent).toBe('x')
+    expect(container.querySelector('math')).toBeNull()
   })
 
-  it('preserves SVG markup for diagram-bearing questions', () => {
+  it('strips SVG markup instead of permitting scriptable SVG content', () => {
     const { container } = render(
       <SafeHtml html='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>' />,
     )
-    expect(container.querySelector('svg')).not.toBeNull()
-    expect(container.querySelector('circle')).not.toBeNull()
+    expect(container.querySelector('svg')).toBeNull()
   })
 
   it('drops <script> tags and inline event handlers', () => {
@@ -38,5 +36,14 @@ describe('SafeHtml', () => {
     )
     const link = container.querySelector('a')
     expect(link?.getAttribute('rel')).toContain('noopener')
+  })
+
+  it('keeps safe images and adds lazy-loading attributes', () => {
+    const { container } = render(
+      <SafeHtml html='<img src="https://example.com/x.png" alt="x">' />,
+    )
+    const image = container.querySelector('img')
+    expect(image?.getAttribute('loading')).toBe('lazy')
+    expect(image?.getAttribute('decoding')).toBe('async')
   })
 })

@@ -29,7 +29,7 @@ export function SafeHtml({ html, className }: SafeHtmlProps) {
   const sanitizedHtml = useMemo(
     () =>
       DOMPurify.sanitize(html, {
-        USE_PROFILES: { html: true, svg: true, svgFilters: true, mathMl: true },
+        USE_PROFILES: { html: true },
         ADD_ATTR: ['target'],
         FORBID_TAGS,
         FORBID_ATTR,

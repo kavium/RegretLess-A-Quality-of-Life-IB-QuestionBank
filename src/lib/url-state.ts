@@ -1,5 +1,6 @@
 import type { LevelCode, NormalizedSelection, OrderMode, PaperCode, WorkspaceFilterState } from '../types'
 import type { SyllabusIndex } from './selection'
+import { QuestionIdSchema } from './schemas'
 import { emptySelection, normalizeSelection } from './selection'
 
 export function serializeSelection(selection: NormalizedSelection) {
@@ -55,14 +56,16 @@ export function parseWorkspaceFilters(searchParams: URLSearchParams): WorkspaceF
   const order = searchParams.get('order')
   const orderMode: OrderMode = order === 'scrambled' ? 'scrambled' : 'source'
   const scrambleNonce = Number.parseInt(searchParams.get('shuffle') ?? '0', 10)
+  const expanded = searchParams.get('expanded')
+  const parsedExpanded = expanded === null ? null : QuestionIdSchema.safeParse(expanded)
 
   return {
     paperFilters: parsePapers(searchParams.get('papers')),
     levelFilters: parseLevels(searchParams.get('levels')),
     onlyDifficult: searchParams.get('difficult') === '1',
     orderMode,
-    scrambleNonce: Number.isNaN(scrambleNonce) ? 0 : scrambleNonce,
-    expandedQuestionId: searchParams.get('expanded'),
+    scrambleNonce: Number.isSafeInteger(scrambleNonce) && scrambleNonce >= 0 ? scrambleNonce : 0,
+    expandedQuestionId: parsedExpanded?.success ? parsedExpanded.data : null,
   }
 }
 
